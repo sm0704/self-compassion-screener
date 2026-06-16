@@ -1,0 +1,7 @@
+# NEVER commit real secrets — they live in Streamlit Cloud's Secrets panel instead.
+.streamlit/secrets.toml
+
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
