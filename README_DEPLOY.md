@@ -1,16 +1,35 @@
-# Self-Compassion Screener — web app
+# Self-Compassion Review Tools — web app
 
-This `webapp/` folder is a complete, self-contained chat app. It wraps the **same**
-screening prompt the ADK agent uses (`prompt.py` here is a copy of
-`../screening_agent/prompt.py`) and calls Gemini directly, so it runs on the **free
-Streamlit Community Cloud**. Your reviewer just opens a URL, types a password, and
-chats — nothing to install on their side, ever.
+This `webapp/` folder is a complete, self-contained Streamlit app carrying **two tools**
+behind one URL and one password:
 
-**What the user sees:** a web page with a chat box. They paste a title + abstract and
-get the INCLUDE / EXCLUDE / MAYBE decision with a confidence level, summary, checklist,
-and notes.
+- **Data extraction** (default page) — upload an included article's PDF and get every
+  Covidence domain filled in, with a page reference, supporting quote, and confidence
+  level behind each value. Nothing is submitted anywhere; the reviewer reads the result
+  and types it into Covidence themselves.
+- **Screening** — paste a Method section, get INCLUDE / EXCLUDE / MAYBE.
+
+It calls Gemini directly via `google-genai`, so it needs no ADK and runs on the free
+Streamlit Community Cloud. Your reviewer opens a URL, types a password, and works —
+nothing to install on their side, ever.
 
 ---
+
+## Layout
+
+```
+streamlit_app.py        entry point: page config, password gate, navigation
+common.py               secrets, auth, cached Gemini client
+config.py               all user-facing labels + which model each tool uses
+views/
+  extractor.py          the PDF extraction review page
+  screener.py           the screening chat page
+extraction/             COPY of ../extraction/ — schema, prompts, two-pass engine
+prompt.py               COPY of ../screening_agent/prompt.py
+```
+
+The two `COPY` entries are generated. Edit the originals in the parent project and run
+`../sync_webapp.sh`; editing them here will be overwritten.
 
 ## One-time deploy (~10 minutes)
 
@@ -24,7 +43,7 @@ of the repo. From inside this folder:
 ```bash
 git init
 git add .
-git commit -m "Self-compassion screening web app"
+git commit -m "Self-compassion review tools"
 # Create an EMPTY repo on github.com first (no README), then:
 git remote add origin https://github.com/<you>/<repo-name>.git
 git branch -M main
@@ -48,9 +67,6 @@ git push -u origin main
 ### 3. Share
 Send the reviewer the URL and the password. Done.
 
-> Repeat these steps with the **urinary incontinence** app (in the other project's
-> `webapp/` folder) as a **second repo** to get its own separate URL.
-
 ---
 
 ## Run it locally first (optional)
@@ -62,16 +78,27 @@ streamlit run streamlit_app.py
 ```
 
 ## Updating later
-- **Screening rules:** edit `prompt.py`, then `git push` — the app auto-redeploys.
-  (If you also run the ADK agent, keep it in sync with `../screening_agent/prompt.py`.)
-- **Wording / title / example article:** edit `config.py`, push.
+- **Extraction rules or output shape:** edit `../extraction/prompt.py` or
+  `../extraction/schema.py`, run `../sync_webapp.sh`, then `git push` from here.
+- **Screening rules:** edit `../screening_agent/prompt.py`, run `../sync_webapp.sh`, push.
+- **Wording, titles, models, example article:** edit `config.py`, push.
 - **API key or password:** change them in the app's **Settings → Secrets** — no code
   change or redeploy needed.
 
-## Notes on the shared API key
-- Both screeners can share one key; the page is password-gated so only your reviewer
-  gets in.
-- To track or limit/revoke usage per person, give each app its **own** free AI Studio
-  key (<https://aistudio.google.com/apikey>) in its Secrets.
-- On the free tier the app sleeps after inactivity and wakes in a few seconds on the
-  next visit — harmless here.
+## Notes
+
+- **Models.** Extraction defaults to `gemini-3.1-pro-preview` (set in `config.py`);
+  dense tables and statistical judgement are where a cheaper tier stops being worth it.
+  The sidebar has a selector so you can compare tiers on the same article. Screening
+  stays on Flash.
+- **Which page opens first.** Data extraction is the default because that is the stage
+  in progress. Move `default=True` in `streamlit_app.py` to change it.
+- **Upload size.** `.streamlit/config.toml` sets `maxUploadSize = 200` (MB). Ordinary
+  articles are a few MB; theses with embedded figures can be much larger.
+- **Runtime.** A full paper takes a minute or two — two passes over the whole PDF. The
+  result is cached in the session, so switching domain tabs costs nothing.
+- **Shared API key.** Both tools share one key; the app is password-gated. To track or
+  revoke usage separately, give each deployment its own free AI Studio key
+  (<https://aistudio.google.com/apikey>) in its Secrets.
+- **Sleeping.** On the free tier the app sleeps after inactivity and wakes in a few
+  seconds — harmless here.

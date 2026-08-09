@@ -1,2 +1,10 @@
+# st.navigation / st.Page need Streamlit >= 1.36; st.code(wrap_lines=) needs >= 1.40.
 streamlit>=1.40
+
+# Google's newer "AQ."-prefixed API keys require google-genai >= 2. Also the version
+# that exposes the Files API and native PDF parts used by extraction/engine.py.
 google-genai>=2,<3
+
+# Pulled in by google-genai, but pinned explicitly: the extraction schemas are Pydantic
+# v2 models and are handed straight to Gemini as the response schema.
+pydantic>=2,<3

@@ -1,3 +1,9 @@
 [theme]
 base = "light"
 primaryColor = "#2e9e6b"
+
+[server]
+# Article PDFs are usually a few MB, but theses and dissertations with embedded figures
+# can be much larger. Streamlit's default is 200MB; this is explicit so the limit is
+# visible rather than surprising.
+maxUploadSize = 200
