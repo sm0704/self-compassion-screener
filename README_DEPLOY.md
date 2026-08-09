@@ -87,10 +87,11 @@ streamlit run streamlit_app.py
 
 ## Notes
 
-- **Models.** Extraction defaults to `gemini-3.1-pro-preview` (set in `config.py`);
-  dense tables and statistical judgement are where a cheaper tier stops being worth it.
-  The sidebar has a selector so you can compare tiers on the same article. Screening
-  stays on Flash.
+- **Models.** Both tools run `gemini-3-flash-preview` (set in `config.py`). Extraction
+  costs roughly $0.03–0.05 per article there, against $0.16–0.27 on a Pro tier. The
+  sidebar selector lets you re-run the same article on a Pro model and diff the
+  downloaded JSON — worth doing on a paper with both a correlation matrix and a
+  regression table before trusting Flash for a batch.
 - **Which page opens first.** Data extraction is the default because that is the stage
   in progress. Move `default=True` in `streamlit_app.py` to change it.
 - **Upload size.** `.streamlit/config.toml` sets `maxUploadSize = 200` (MB). Ordinary

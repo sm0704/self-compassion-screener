@@ -52,16 +52,22 @@ EXTRACTION_SUBTITLE = (
     "transcribe into the extraction form."
 )
 
-# The extraction reads whole papers, tables and all, and its errors are expensive to
-# catch downstream — so it runs on a Pro-tier model rather than Flash.
-EXTRACTION_MODEL = "gemini-3.1-pro-preview"
+# Roughly $0.03-0.05 per article, against $0.16-0.27 on gemini-3.1-pro-preview — and
+# notably ~5x cheaper than gemini-3.6-flash, which is priced close to Pro.
+#
+# Not yet validated against a Pro run. The risk with a cheaper tier on this task is
+# specific: misreading a cell in a dense correlation matrix, and marking every field
+# "high" confidence so the flags panel stops being useful. Worth diffing against a Pro
+# run on a paper that has both a correlation matrix and a regression table.
+EXTRACTION_MODEL = "gemini-3-flash-preview"
 
-# Offered in the sidebar so runs can be compared on the same article.
+# Offered in the sidebar so runs can be compared on the same article. Cheapest first.
 EXTRACTION_MODEL_CHOICES = [
-    "gemini-3.1-pro-preview",
-    "gemini-3-pro-preview",
-    "gemini-2.5-pro",
+    "gemini-3-flash-preview",
     "gemini-3.6-flash",
+    "gemini-2.5-pro",
+    "gemini-3-pro-preview",
+    "gemini-3.1-pro-preview",
 ]
 
 EXTRACTION_INTRO = """

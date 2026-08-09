@@ -28,7 +28,7 @@ INLINE_LIMIT_BYTES = 15 * 1024 * 1024
 _FILE_POLL_SECONDS = 1.5
 _FILE_POLL_TIMEOUT = 180
 
-DEFAULT_MODEL = "gemini-3.1-pro-preview"
+DEFAULT_MODEL = "gemini-3-flash-preview"
 
 
 class ExtractionError(RuntimeError):
