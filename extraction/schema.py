@@ -12,6 +12,13 @@ one Outcomes entry in Covidence; the number of effects inside it is the Timepoin
 Values are strings throughout, never floats. That preserves what the paper actually
 printed ("-.17", "< .01", "61.1%") and avoids the float-coercion artifacts that turn
 61.1% into 0.61099999999999999.
+
+`ExtractionRecord` is the shape the app renders, but it is NEVER sent to Gemini as a
+response schema: fully expanded it is ~50 `Evidence` objects and the API rejects it with
+a bare `400 INVALID_ARGUMENT` (no mention of the schema — see `engine.py`). The model
+returns it in two halves instead, `StudyRecord` and `ResultsRecord`, which `merge()`
+joins. Both halves are comfortably under the limit; if you add fields, keep them that
+way — `python -m extraction.schema` probes the live API and prints where each one sits.
 """
 
 from typing import List, Literal, Optional
@@ -283,8 +290,39 @@ class Inventory(BaseModel):
 # ──────────────────────────────── pass 2 ────────────────────────────────
 
 
+class StudyRecord(BaseModel):
+    """Pass 2 — the study-level domains, in Covidence's rail order."""
+
+    identification: Identification
+    methods: Methods
+    population: Population
+    sc_measure: SelfCompassionMeasure
+    flags: List[Flag] = Field(
+        description="Reviewer attention needed in THESE domains only.",
+    )
+
+
+class ResultsRecord(BaseModel):
+    """Pass 3 — the academic outcomes, their effects, and what was rejected or dropped."""
+
+    outcomes: List[Outcome]
+    rejected_outcomes: List[RejectedOutcome]
+    dropped_effects: List[DroppedEffect]
+    flags: List[Flag] = Field(
+        description="Reviewer attention needed in the outcomes and results data.",
+    )
+    coverage: Coverage
+
+
+# ─────────────────────────── the assembled record ───────────────────────────
+
+
 class ExtractionRecord(BaseModel):
-    """Pass 2 — the reviewable record, one per study."""
+    """The reviewable record, one per study — `StudyRecord` + `ResultsRecord`.
+
+    Assembled locally by `merge()`. Do not hand this to Gemini as a response schema;
+    see the module docstring.
+    """
 
     identification: Identification
     methods: Methods
@@ -295,6 +333,25 @@ class ExtractionRecord(BaseModel):
     dropped_effects: List[DroppedEffect]
     flags: List[Flag]
     coverage: Coverage
+
+
+def merge(study: StudyRecord, results: ResultsRecord) -> ExtractionRecord:
+    """Join the two extraction passes into the record the app renders.
+
+    Flags are concatenated study-first, which is also the order the review UI shows the
+    domains in. Neither pass sees the other's output, so there is nothing to reconcile.
+    """
+    return ExtractionRecord(
+        identification=study.identification,
+        methods=study.methods,
+        population=study.population,
+        sc_measure=study.sc_measure,
+        outcomes=results.outcomes,
+        rejected_outcomes=results.rejected_outcomes,
+        dropped_effects=results.dropped_effects,
+        flags=list(study.flags) + list(results.flags),
+        coverage=results.coverage,
+    )
 
 
 # Domain order matches the Covidence rail, so the review UI can be transcribed
@@ -361,3 +418,71 @@ FIELD_LABELS = {
     "sd_group1": "SD group1/time1",
     "sd_group2": "SD group2/time2",
 }
+
+
+# ────────────────────────── schema-size self-check ──────────────────────────
+
+
+def _probe(model_name: str = "") -> int:
+    """Ask Gemini to accept each response schema; print which ones it takes.
+
+    The API answers an oversized schema with a bare `400 INVALID_ARGUMENT` that names
+    nothing, so the only reliable check is to send it. Run after editing this file:
+
+        python -m extraction.schema            # uses DEFAULT_MODEL
+        python -m extraction.schema gemini-3.1-pro-preview
+
+    Needs GOOGLE_API_KEY. Costs one near-empty generation per schema.
+    """
+    import os
+
+    from google import genai
+    from google.genai import types
+
+    from .engine import DEFAULT_MODEL
+
+    key = os.environ.get("GOOGLE_API_KEY")
+    if not key:
+        print("GOOGLE_API_KEY is not set.")
+        return 2
+
+    model_name = model_name or DEFAULT_MODEL
+    client = genai.Client(api_key=key, vertexai=False)
+    failures = 0
+
+    for schema in (Inventory, StudyRecord, ResultsRecord, ExtractionRecord):
+        expected_ok = schema is not ExtractionRecord
+        try:
+            client.models.generate_content(
+                model=model_name,
+                contents="Return the smallest valid object.",
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json", response_schema=schema
+                ),
+            )
+            accepted = True
+        except Exception as exc:  # noqa: BLE001 — any rejection is a rejection
+            accepted = False
+            detail = str(exc)[:100]
+
+        if accepted:
+            print(f"  accepted  {schema.__name__}")
+        else:
+            print(f"  REJECTED  {schema.__name__}: {detail}")
+        # ExtractionRecord is expected to be rejected — it is never sent.
+        if expected_ok and not accepted:
+            failures += 1
+
+    print(f"\nmodel: {model_name}")
+    if failures:
+        print(
+            f"{failures} schema(s) the engine actually sends were rejected — they have "
+            "grown past the API's limit. Split or trim them."
+        )
+    return 1 if failures else 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    import sys
+
+    raise SystemExit(_probe(sys.argv[1] if len(sys.argv) > 1 else ""))

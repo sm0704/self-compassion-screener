@@ -7,10 +7,12 @@ Cloud deploys from the `webapp/` repo root; run `./sync_webapp.sh` after editing
 
 from .engine import (
     DEFAULT_MODEL,
+    MIN_TEXT_CHARS,
     ExtractionError,
     ExtractionResult,
     build_client,
     extract,
+    extract_text,
 )
 from .schema import (
     DOMAIN_ORDER,
@@ -20,10 +22,14 @@ from .schema import (
     ExtractionRecord,
     Inventory,
     Outcome,
+    ResultsRecord,
+    StudyRecord,
+    merge,
 )
 
 __all__ = [
     "DEFAULT_MODEL",
+    "MIN_TEXT_CHARS",
     "DOMAIN_ORDER",
     "FIELD_LABELS",
     "Effect",
@@ -33,6 +39,10 @@ __all__ = [
     "ExtractionResult",
     "Inventory",
     "Outcome",
+    "ResultsRecord",
+    "StudyRecord",
     "build_client",
     "extract",
+    "extract_text",
+    "merge",
 ]

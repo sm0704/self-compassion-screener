@@ -47,9 +47,18 @@ Measures: Self-compassion was assessed with the 26-item Self-Compassion Scale (S
 EXTRACTION_TITLE = "Full-Text Data Extraction"
 EXTRACTION_ICON = "📋"
 EXTRACTION_SUBTITLE = (
-    "Upload an included article's PDF and get every Covidence domain filled in, with a "
-    "page reference and supporting quote behind each value — ready to review, then "
-    "transcribe into the extraction form."
+    "Upload an included article's PDF — or paste its text if no PDF is available — and "
+    "get every Covidence domain filled in, with a page reference and supporting quote "
+    "behind each value, ready to review and transcribe into the extraction form."
+)
+
+# Shown above the paste box. The point of the tab is that some articles can be read but
+# not downloaded; the point of this caption is that using it costs you something.
+EXTRACTION_TEXT_HELP = (
+    "For articles you can read but not download. The model sees only what you paste — "
+    "**no figures, and no table that was an image** — and copied tables usually lose "
+    "their column alignment, so numbers can land under the wrong heading. Upload the "
+    "PDF whenever you can, and check every effect here against the article."
 )
 
 # Roughly $0.03-0.05 per article, against $0.16-0.27 on gemini-3.1-pro-preview — and
@@ -62,11 +71,11 @@ EXTRACTION_SUBTITLE = (
 EXTRACTION_MODEL = "gemini-3-flash-preview"
 
 # Offered in the sidebar so runs can be compared on the same article. Cheapest first.
+# Every entry is checked against the live API — gemini-2.5-pro and gemini-3-pro-preview
+# were listed here and both now 404 for this key, so picking them only produced an error.
 EXTRACTION_MODEL_CHOICES = [
     "gemini-3-flash-preview",
     "gemini-3.6-flash",
-    "gemini-2.5-pro",
-    "gemini-3-pro-preview",
     "gemini-3.1-pro-preview",
 ]
 
@@ -74,7 +83,8 @@ EXTRACTION_INTRO = """
 **How to use**
 
 1. Download the article's PDF from Covidence.
-2. Upload it below and press **Extract**.
+2. Upload it below and press **Extract**. No PDF? Use the **Paste text** tab instead —
+   copy the whole article, Method and Results especially, tables included.
 3. Review each domain. Every field shows its page reference and a supporting quote, so
    you can verify it without re-reading the paper.
 4. Copy the values into the Covidence extraction form.
@@ -84,5 +94,10 @@ attention is worth the most. The **Review notes** tab lists which outcomes were 
 as non-academic and which effects were dropped in favour of a higher-priority statistic —
 that's where a missed effect would show up.
 
-Nothing is submitted anywhere. This tool only reads the PDF; you enter the data yourself.
+Pasted text is the fallback, not the default: figures and image-only tables simply are
+not there, so a value that is missing may be missing from your paste rather than from
+the paper. The result banner says when a record came from text.
+
+Nothing is submitted anywhere. This tool only reads what you give it; you enter the data
+yourself.
 """

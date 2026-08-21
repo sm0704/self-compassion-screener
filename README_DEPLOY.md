@@ -3,10 +3,11 @@
 This `webapp/` folder is a complete, self-contained Streamlit app carrying **two tools**
 behind one URL and one password:
 
-- **Data extraction** (default page) — upload an included article's PDF and get every
-  Covidence domain filled in, with a page reference, supporting quote, and confidence
-  level behind each value. Nothing is submitted anywhere; the reviewer reads the result
-  and types it into Covidence themselves.
+- **Data extraction** (default page) — upload an included article's PDF (or paste its
+  text, for articles that can be read but not downloaded) and get every Covidence domain
+  filled in, with a page reference, supporting quote, and confidence level behind each
+  value. Nothing is submitted anywhere; the reviewer reads the result and types it into
+  Covidence themselves.
 - **Screening** — paste a Method section, get INCLUDE / EXCLUDE / MAYBE.
 
 It calls Gemini directly via `google-genai`, so it needs no ADK and runs on the free
@@ -24,7 +25,7 @@ config.py               all user-facing labels + which model each tool uses
 views/
   extractor.py          the PDF extraction review page
   screener.py           the screening chat page
-extraction/             COPY of ../extraction/ — schema, prompts, two-pass engine
+extraction/             COPY of ../extraction/ — schema, prompts, three-pass engine
 prompt.py               COPY of ../screening_agent/prompt.py
 ```
 

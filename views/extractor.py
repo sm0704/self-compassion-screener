@@ -21,9 +21,10 @@ from config import (
     EXTRACTION_MODEL,
     EXTRACTION_MODEL_CHOICES,
     EXTRACTION_SUBTITLE,
+    EXTRACTION_TEXT_HELP,
     EXTRACTION_TITLE,
 )
-from extraction import ExtractionError, extract
+from extraction import MIN_TEXT_CHARS, ExtractionError, extract, extract_text
 from extraction.schema import FIELD_LABELS, Evidence
 
 _CONFIDENCE = {
@@ -122,6 +123,8 @@ def _summary(result) -> None:
     cols[3].metric("Extraction time", f"{result.seconds:.0f}s")
 
     footnote = f"Model: `{result.model}`"
+    if result.source == "text":
+        footnote += " · from pasted text"
     if result.total_tokens:
         footnote += f" · {result.total_tokens:,} tokens"
     st.caption(footnote)
@@ -270,6 +273,38 @@ def _review_notes_tab(result) -> None:
 # ──────────────────────────────── the page ────────────────────────────────
 
 
+def _run_extraction(*, digest: str, name: str, button_key: str, disabled: bool, run) -> None:
+    """Extract button + status + error handling, shared by the PDF and text panes.
+
+    `digest` fingerprints the input so the button can say whether this exact article has
+    already been run; `run` takes a progress callback and returns an ExtractionResult.
+    """
+    already_done = st.session_state.get("extraction_digest") == digest
+    label = "Re-run extraction" if already_done else "Extract"
+
+    if not st.button(label, type="primary", key=button_key, disabled=disabled):
+        return
+
+    try:
+        with st.status("Starting…", expanded=True) as status:
+            result = run(lambda msg: st.write(msg))
+            status.update(
+                label=f"Done in {result.seconds:.0f}s", state="complete", expanded=False
+            )
+        st.session_state.extraction_result = result
+        st.session_state.extraction_digest = digest
+        st.session_state.extraction_filename = name
+        st.rerun()
+    except ExtractionError as exc:
+        st.error(f"Extraction failed: {exc}", icon="🚫")
+    except Exception as exc:  # noqa: BLE001 — keep the app alive, show the cause
+        st.error(
+            "Something went wrong talking to the model. Please try again.\n\n"
+            f"_Technical detail: {exc}_",
+            icon="🚫",
+        )
+
+
 def render() -> None:
     api_key = require_api_key()
 
@@ -301,52 +336,73 @@ def render() -> None:
                 st.session_state.pop(key, None)
             st.rerun()
 
-    uploaded = st.file_uploader(
-        "Article PDF (downloaded from Covidence)",
-        type=["pdf"],
-        help="The full text, not just the abstract. Theses are fine — they take longer.",
-    )
+    pdf_tab, text_tab = st.tabs(["📄 Upload PDF", "📝 Paste text"])
 
-    if uploaded is not None:
-        pdf_bytes = uploaded.getvalue()
-        digest = hashlib.sha256(pdf_bytes).hexdigest()
-        already_done = st.session_state.get("extraction_digest") == digest
+    with pdf_tab:
+        uploaded = st.file_uploader(
+            "Article PDF (downloaded from Covidence)",
+            type=["pdf"],
+            help="The full text, not just the abstract. Theses are fine — they take longer.",
+        )
+        if uploaded is not None:
+            pdf_bytes = uploaded.getvalue()
+            _run_extraction(
+                digest=hashlib.sha256(pdf_bytes).hexdigest(),
+                name=uploaded.name,
+                button_key="extract_pdf",
+                disabled=not pdf_bytes,
+                run=lambda on_progress: extract(
+                    pdf_bytes=pdf_bytes,
+                    filename=uploaded.name,
+                    api_key=api_key,
+                    model=model,
+                    progress=on_progress,
+                ),
+            )
 
-        label = "Re-run extraction" if already_done else "Extract"
-        if st.button(label, type="primary", disabled=not pdf_bytes):
-            try:
-                with st.status("Starting…", expanded=True) as status:
-                    result = extract(
-                        pdf_bytes=pdf_bytes,
-                        filename=uploaded.name,
-                        api_key=api_key,
-                        model=model,
-                        progress=lambda msg: st.write(msg),
-                    )
-                    status.update(
-                        label=f"Done in {result.seconds:.0f}s",
-                        state="complete",
-                        expanded=False,
-                    )
-                st.session_state.extraction_result = result
-                st.session_state.extraction_digest = digest
-                st.session_state.extraction_filename = uploaded.name
-                st.rerun()
-            except ExtractionError as exc:
-                st.error(f"Extraction failed: {exc}", icon="🚫")
-            except Exception as exc:  # noqa: BLE001 — keep the app alive, show the cause
-                st.error(
-                    "Something went wrong talking to the model. Please try again.\n\n"
-                    f"_Technical detail: {exc}_",
-                    icon="🚫",
+    with text_tab:
+        st.caption(EXTRACTION_TEXT_HELP)
+        pasted = st.text_area(
+            "Article text",
+            height=260,
+            placeholder=(
+                "Paste the whole article — Method and Results in particular, including "
+                "every table you can copy out."
+            ),
+            help=(
+                "Second choice. The model cannot see figures or image-only tables here, "
+                "and pasted tables lose their column alignment — upload the PDF when you "
+                "can."
+            ),
+        )
+        text = (pasted or "").strip()
+        if text:
+            st.caption(f"{len(text):,} characters · {len(text.split()):,} words")
+            if len(text) < MIN_TEXT_CHARS:
+                st.warning(
+                    f"That is shorter than {MIN_TEXT_CHARS:,} characters — an abstract, "
+                    "not a full text. Paste the whole article.",
+                    icon="⚠️",
                 )
+        _run_extraction(
+            digest=hashlib.sha256(text.encode("utf-8")).hexdigest(),
+            name="pasted_text",
+            button_key="extract_text",
+            disabled=len(text) < MIN_TEXT_CHARS,
+            run=lambda on_progress: extract_text(
+                article_text=text,
+                api_key=api_key,
+                model=model,
+                progress=on_progress,
+            ),
+        )
 
     result = st.session_state.get("extraction_result")
     if result is None:
         st.info(
-            "Upload a PDF to begin. Extraction reads the whole article — including "
-            "tables and figures that carry no text layer — and usually takes a minute "
-            "or two.",
+            "Upload a PDF to begin — or paste the article's text if no PDF is available. "
+            "Extraction reads the whole article (from a PDF, that includes tables and "
+            "figures carrying no text layer) and usually takes a minute or two.",
             icon="📄",
         )
         return
